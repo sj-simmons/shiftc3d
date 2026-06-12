@@ -20,8 +20,9 @@ def truncate_c3d(src_path: str, n: int, from_start: bool) -> str:
 
     pts = c["data"]["points"]      # (4, markers, frames)
     ana = c["data"]["analogs"]     # (1, channels, analog_frames)
+    rot = c["data"].get("rotations")  # (4, 4, segments, frames) or None
 
-    n_frames = pts.shape[2]
+    n_frames = pts.shape[2] if pts.shape[2] else (rot.shape[3] if rot is not None else 0)
     if n <= 0:
         raise ValueError(f"n must be a positive integer, got {n}")
     if n >= n_frames:
@@ -29,16 +30,20 @@ def truncate_c3d(src_path: str, n: int, from_start: bool) -> str:
             f"{src_path} has only {n_frames} frames; cannot remove {n}"
         )
 
-    ratio = int(round(ana.shape[2] / n_frames)) if n_frames else 1
+    ratio = int(round(ana.shape[2] / n_frames)) if n_frames and ana.shape[2] else 1
     an = n * ratio
 
     if from_start:
         c["data"]["points"] = np.asfortranarray(pts[:, :, n:])
         c["data"]["analogs"] = np.asfortranarray(ana[:, :, an:])
+        if rot is not None:
+            c["data"]["rotations"] = np.asfortranarray(rot[:, :, :, n:])
         suffix = "_pretruncated"
     else:
         c["data"]["points"] = np.asfortranarray(pts[:, :, :-n])
         c["data"]["analogs"] = np.asfortranarray(ana[:, :, :-an])
+        if rot is not None:
+            c["data"]["rotations"] = np.asfortranarray(rot[:, :, :, :-n])
         suffix = "_posttruncated"
 
     # Let ezc3d rebuild meta_points (residuals etc.) for the new frame count.
