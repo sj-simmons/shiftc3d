@@ -29,20 +29,29 @@ Prints for each file:
 - Analog channel count, rate, and channel names
 - Per-marker fill percentage (fraction of frames with valid, non-NaN data)
 
-### `view_c3d.py` — animate markers in 3D
+### `view_c3d.py` — animate markers or force plates in 3D
 
 ```
-python3 view_c3d.py FILE.c3d [--fps N] [--save out.mp4] [--no-labels]
+python3 view_c3d.py FILE.c3d [FILE2.c3d] [--fps N] [--save out.mp4] [--no-labels]
 ```
 
-Opens an interactive matplotlib 3D window that animates the marker trajectories.
-Drag to rotate, scroll to zoom.
+Opens an interactive matplotlib 3D window. Pass two files with the same number
+of frames to show them side-by-side in a single synchronized animation.
+
+The file type is detected automatically:
+
+- **Marker data** — animates marker positions as a 3D scatter with labels.
+- **Segment rotation data** — animates segment origin positions extracted from
+  the 4×4 transformation matrices.
+- **Force plate data** (files where markers are absent and force platforms are
+  present) — draws plate outlines and animates the ground reaction force vector
+  at the centre of pressure for each plate.
 
 | Option | Description |
 |---|---|
 | `--fps N` | Playback speed (default: file's capture rate) |
 | `--save FILE` | Render to video instead of showing (requires ffmpeg) |
-| `--no-labels` | Hide marker name labels |
+| `--no-labels` | Hide marker/segment name labels |
 
 ### `shiftc3d.py` — truncate frames from two files
 
