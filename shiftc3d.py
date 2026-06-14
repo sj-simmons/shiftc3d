@@ -106,21 +106,34 @@ def extract_signal(path):
         labels = c["parameters"].get("ROTATION", {}).get("LABELS", {}).get("value", [])
         nyq = pt_rate / 2.0
         b, a = butter(4, min(10.0 / nyq, 0.99), btype="low")
+
         foot_idx = [i for i, l in enumerate(labels) if "foot" in l.lower()]
         if foot_idx:
-            foot_z = rot[2, 3, foot_idx, :]              # (n_feet, n_frames)
+            foot_z = rot[2, 3, foot_idx, :]
             ranges = foot_z.max(axis=1) - foot_z.min(axis=1)
-            active = foot_idx[int(np.argmax(ranges))]    # foot with most vertical travel
-            sig = filtfilt(b, a, rot[2, 3, active, :])
-            name = labels[active].removesuffix("_4X4")
-            return sig, pt_rate, f"Z-position of {name} (most variable foot)"
-        # Fallback: pelvis Z if no foot segments are labelled
-        pelvis_idx = next(
-            (i for i, l in enumerate(labels)
-             if "pelvis" in l.lower() and "shift" not in l.lower()), 1)
-        sig = filtfilt(b, a, rot[2, 3, pelvis_idx, :])
-        name = labels[pelvis_idx].removesuffix("_4X4") if labels else "pelvis"
-        return sig, pt_rate, f"Z-position of {name}"
+            max_range = float(ranges.max())
+            active = foot_idx[int(np.argmax(ranges))]
+
+            if max_range > 150:
+                # Foot clearly goes airborne — its Z position correlates with
+                # the load on the stance foot (both high during single-leg
+                # stance, both drop when weight transfers or foot lands).
+                sig = filtfilt(b, a, rot[2, 3, active, :])
+                name = labels[active].removesuffix("_4X4")
+                return sig, pt_rate, f"Z-position of {name} ({max_range:.0f} mm range)"
+
+        # Feet stay near the ground (bilateral stance, seated, etc.) —
+        # fall back to vertical CoM acceleration, which is proportional to
+        # the net ground reaction force via F = m(a + g).
+        seg_idx = [i for i, l in enumerate(labels)
+                   if "world" not in l.lower() and "shift" not in l.lower()]
+        if not seg_idx:
+            seg_idx = list(range(rot.shape[2]))
+        com_z = rot[2, 3, seg_idx, :].mean(axis=0)
+        com_z_s = filtfilt(b, a, com_z)
+        dt = 1.0 / pt_rate
+        accel = np.gradient(np.gradient(com_z_s, dt), dt)
+        return accel, pt_rate, f"vertical CoM acceleration ({len(seg_idx)} segments)"
 
     pts = c["data"]["points"]
     if pts.shape[1] > 0:
@@ -189,12 +202,12 @@ def main():
             print(f"detected:  0 frames (confidence {confidence:.1f}%) — sequences are already aligned")
             return
         n = float(abs(lag))
-        direction = "PRE start / POST end" if lag >= 0 else "POST start / PRE end (files may be swapped)"
         print(f"detected:  {n:.0f} frames = {n / rate * 1000:.2f} ms  "
-              f"(confidence {confidence:.1f}%, direction: {direction})")
+              f"(confidence {confidence:.1f}%)")
         if lag < 0:
-            print("warning: negative lag — consider swapping PRE and POST arguments",
-                  file=sys.stderr)
+            print(f"negative lag detected — try switching the file order:\n"
+                  f"  python3 shiftc3d.py {post_src} {pre_src}")
+            return
 
     out_pre, n_pt, n_an, ms = truncate_c3d(pre_src, n, from_start=True)
     print(f"wrote {out_pre}  ({n_pt} frames / {n_an} analog samples = {ms:.2f} ms)")

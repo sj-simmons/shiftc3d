@@ -76,7 +76,8 @@ file. The signal used depends on the file type:
 | File type | Signal used |
 |---|---|
 | Force plate (FP) | Total absolute vertical force \|Fz\| across all plates, downsampled to point rate |
-| Segment rotation | Z-position of the most vertically active foot segment |
+| Segment rotation — foot travels >150 mm vertically | Z-position of the most vertically active foot segment |
+| Segment rotation — feet stay near ground | Vertical acceleration of the whole-body centre of mass (proportional to net GRF via F = m(a+g)) |
 
 The output reports the detected frame count, equivalent time, and a confidence
 score (0–100%). Scores above ~80% are generally trustworthy; below that,
