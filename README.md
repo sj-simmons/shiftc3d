@@ -8,9 +8,10 @@ Python tools for inspecting, viewing, and truncating [C3D](https://www.c3d.org/)
 - [ezc3d](https://github.com/pyomeca/ezc3d)
 - matplotlib
 - numpy
+- scipy (required only for `shiftc3d.py` auto-detection)
 
 ```
-pip install ezc3d matplotlib numpy
+pip install ezc3d matplotlib numpy scipy
 ```
 
 ## Tools
@@ -53,10 +54,10 @@ The file type is detected automatically:
 | `--save FILE` | Render to video instead of showing (requires ffmpeg) |
 | `--no-labels` | Hide marker/segment name labels |
 
-### `shiftc3d.py` — truncate frames from two files
+### `shiftc3d.py` — truncate frames from two files to align them
 
 ```
-python3 shiftc3d.py PRE.c3d POST.c3d N
+python3 shiftc3d.py PRE.c3d POST.c3d [N]
 ```
 
 Writes two new files:
@@ -65,4 +66,25 @@ Writes two new files:
 - `POST_posttruncated.c3d` — `POST.c3d` with the last N frames removed
 
 Both point data and analog data are truncated proportionally to their respective
-sample rates.
+sample rates. N may be a non-integer; it is rounded to the nearest whole video
+frame (a C3D format constraint).
+
+**Auto-detection (omit N):** if N is not supplied, the offset is estimated
+automatically by cross-correlating a representative signal extracted from each
+file. The signal used depends on the file type:
+
+| File type | Signal used |
+|---|---|
+| Force plate (FP) | Total absolute vertical force \|Fz\| across all plates, downsampled to point rate |
+| Segment rotation | Z-position of the most vertically active foot segment |
+
+The output reports the detected frame count, equivalent time, and a confidence
+score (0–100%). Scores above ~80% are generally trustworthy; below that,
+inspect the result and consider supplying N manually.
+
+Auto-detection requires `scipy` (`pip install scipy`).
+
+**Notes on precision:** The C3D format requires the analog sample count to be
+an exact integer multiple of the point frame count, so effective alignment
+precision is limited to one video frame (e.g. 8.33 ms at 120 Hz) regardless
+of the analog sample rate.
